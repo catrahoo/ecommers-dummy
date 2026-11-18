@@ -220,7 +220,10 @@ const tgl = d => d ? new Date(d).toLocaleString('id-ID',{day:'2-digit',month:'sh
 const isAdmin = () => S.profile?.role === 'admin';
 function toast(msg, err){ const t=document.createElement('div'); t.className='toast'+(err?' err':''); t.textContent=msg; document.body.appendChild(t); setTimeout(()=>t.remove(), 3200); }
 function fail(e){ console.error(e); toast(e?.message || String(e), true); }
-function saveCart(){ localStorage.setItem('cart', JSON.stringify(S.cart)); renderNav(); }
+function saveCart(){ localStorage.setItem('cart', JSON.stringify(S.cart)); renderNav(); syncCart(); }
+// kirim isi keranjang member ke server (laporan "paling diinginkan"), ditunda 1,5 detik
+let _syncT; function syncCart(){ clearTimeout(_syncT); _syncT = setTimeout(() => { if (S.session && !isAdmin())
+  sb.rpc('sync_cart', { p_items: S.cart.map(c => ({ id:c.id, qty:c.qty, satuan:c.satuan||'pack' })) }).catch(()=>{}); }, 1500); }
 function modal(html){ $('#modalRoot').innerHTML = `<div class="modal" onclick="if(event.target===this)closeModal()"><div class="card">${html}</div></div>`; }
 function closeModal(){ $('#modalRoot').innerHTML=''; }
 const ok = r => { if (r.error) throw r.error; return r.data; };
@@ -546,6 +549,7 @@ let CO = {};
 async function viewCheckout(){
   if (!S.cart.length) { location.hash = '#/keranjang'; return; }
   await loadProfile(); // ambil akses DP terbaru dari admin
+  syncCart();
   if (S.profile && S.profile.role !== 'admin' && !profilLengkap(S.profile)) { app.innerHTML = '<h1>Checkout</h1>'; lengkapiAlamatModal(); return; }
   const tarif = ok(await sb.from('tarif_manual').select('*').order('kota'));
   const p = S.profile || {};
@@ -925,7 +929,7 @@ async function viewAdminDash(){
   const bulan = new Date().toISOString().slice(0,7);
   const omzetBln = o.filter(x=>['dikonfirmasi','dikirim','selesai'].includes(x.status) && x.created_at.startsWith(bulan)).reduce((a,b)=>a+b.total,0);
   const low = p.filter(x=>x.stok<=5);
-  app.innerHTML = `<h1>Dashboard Admin</h1><div class="stats">
+  app.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><h1>Dashboard Admin</h1><button class="btn" id="btnXls" onclick="exportExcel()">⬇ Export Excel + Grafik</button></div><div class="stats">
     <a class="stat" href="#/admin/pesanan?s=menunggu"><span class="mut">Pesanan baru</span><b style="color:var(--warn)">${c('menunggu')}</b></a>
     <a class="stat" href="#/admin/pesanan?s=dikonfirmasi"><span class="mut">Siap kirim</span><b>${c('dikonfirmasi')}</b></a>
     <div class="stat"><span class="mut">Dikirim</span><b>${c('dikirim')}</b></div>
@@ -935,6 +939,19 @@ async function viewAdminDash(){
     <div class="stat"><span class="mut">Total poin beredar</span><b>${m.reduce((a,b)=>a+b.poin,0).toLocaleString('id-ID')}</b></div>
     <a class="stat" href="#/admin/penukaran"><span class="mut">Penukaran menunggu</span><b style="color:var(--warn)">${r.length}</b></a></div>
     ${low.length?`<div class="card"><b>⚠️ Stok menipis</b><div class="mut">${low.map(x=>`${esc(x.nama)} (${x.stok})`).join(' · ')}</div></div>`:''}`;
+}
+
+async function exportExcel(){
+  const b = $('#btnXls'); b.disabled = true; const t0 = b.textContent; b.textContent = 'Menyiapkan laporan…';
+  try {
+    let tok = ''; try { tok = JSON.parse(localStorage.getItem('dini_sesi')||'null')?.access_token || ''; } catch {}
+    const r = await fetch('/api/export-excel', { method:'POST', headers:{ Authorization:'Bearer '+tok } });
+    if (!r.ok) { let m = `HTTP ${r.status}`; try { m = (await r.json()).error.message; } catch {} throw new Error(m); }
+    const nama = (r.headers.get('Content-Disposition')||'').match(/filename="([^"]+)"/)?.[1] || 'Laporan.xlsx';
+    const u = URL.createObjectURL(await r.blob());
+    const a = document.createElement('a'); a.href = u; a.download = nama; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(u), 5000); toast('Laporan Excel terunduh');
+  } catch(e){ fail(e); } finally { b.disabled = false; b.textContent = t0; }
 }
 
 /* ================= ADMIN: PESANAN + CETAK LABEL ================= */

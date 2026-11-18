@@ -10,6 +10,7 @@
 // Secret: DATABASE_URL (wajib, connection string Neon), JWT_SECRET (wajib), RAJAONGKIR_KEY (opsional)
 // =====================================================================
 import { neon } from '@neondatabase/serverless';
+import { QUERY, susunLaporan } from './laporan.js';
 
 // ---------------------------------------------------------------- adaptor Neon dengan API mirip D1
 // prepare(sql).bind(...).first()/all()/run()  ·  batch([...]) = satu transaksi
@@ -299,9 +300,30 @@ const RPC = {
       stmts.push(env.DB.prepare(`INSERT INTO point_logs (member_id, delta, saldo_akhir, keterangan, oleh)
         SELECT ?::text, ?::int, poin, 'Tukar poin jadi potongan harga pesanan ' || ${K}, ?::text FROM profiles WHERE id = ?`).bind(u.id, -poin, tg, u.id, u.id));
     }
+    stmts.push(env.DB.prepare('DELETE FROM keranjang WHERE member_id = ?').bind(u.id));
     stmts.push(env.DB.prepare(`SELECT ${K} AS kode`).bind(tg));
     const res = await env.DB.batch(stmts);
     return res[res.length - 1].results[0].kode;
+  },
+
+  // simpan isi keranjang member di server (untuk laporan "paling diinginkan")
+  async sync_cart(env, u, { p_items }) {
+    wajibLogin(u);
+    if (u.admin) return null;
+    const list = (Array.isArray(p_items) ? p_items : []).slice(0, 100);
+    const stmts = [env.DB.prepare('DELETE FROM keranjang WHERE member_id = ?').bind(u.id)];
+    const sudah = new Set();
+    for (const it of list) {
+      const id = parseInt(it.id, 10), qty = Math.min(Math.max(parseInt(it.qty, 10) || 1, 1), 9999);
+      const sat = ['pack', 'slof', 'ball'].includes(it.satuan) ? it.satuan : 'pack';
+      if (!id || sudah.has(id + sat)) continue; sudah.add(id + sat);
+      const kolomIsi = sat === 'slof' ? 'isi_slof' : sat === 'ball' ? 'isi_ball' : '1';
+      const kolomHarga = sat === 'slof' ? 'harga_slof' : sat === 'ball' ? 'harga_ball' : 'harga';
+      stmts.push(env.DB.prepare(`INSERT INTO keranjang (member_id, product_id, satuan, isi, harga, qty)
+        SELECT ?::text, id, ?::text, ${kolomIsi}, coalesce(${kolomHarga}, 0), ?::int FROM products WHERE id = ?::int`).bind(u.id, sat, qty, id));
+    }
+    await env.DB.batch(stmts);
+    return null;
   },
 
   async cancel_order(env, u, { p_id }) {
@@ -519,6 +541,21 @@ async function apiImportFoto(env, u) {
   return hasil;
 }
 
+// ---------------------------------------------------------------- export Excel laporan (admin)
+async function apiExportExcel(env, u) {
+  wajibAdmin(u);
+  const kunci = Object.keys(QUERY);
+  const res = await env.DB.batch(kunci.map(k => env.DB.prepare(QUERY[k])));
+  const d = {}; kunci.forEach((k, i) => { d[k] = res[i].results; });
+  const toko = (await setting(env, 'nama_toko')) || 'Toko';
+  const file = susunLaporan(d, toko);
+  const tgl = new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10);
+  return new Response(file, { headers: {
+    'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'Content-Disposition': `attachment; filename="Laporan-${toko.replace(/[^A-Za-z0-9]+/g, '-')}-${tgl}.xlsx"`,
+    'Cache-Control': 'no-store' } });
+}
+
 // ---------------------------------------------------------------- pesan error D1 → bahasa manusia
 function pesanD1(e) {
   const m = String(e?.message || e);
@@ -554,6 +591,7 @@ export default {
       }
       if (p === '/api/ongkir' && req.method === 'POST') return json(await apiOngkir(req, env));
       if (p === '/api/upload' && req.method === 'POST') return json({ data: await apiUpload(req, env, user) });
+      if (p === '/api/export-excel' && req.method === 'POST') return await apiExportExcel(env, user);
       if (p === '/api/import-foto' && req.method === 'POST') return json({ data: await apiImportFoto(env, user) });
       throw new HttpError('Tidak ditemukan', 404);
     } catch (e) {

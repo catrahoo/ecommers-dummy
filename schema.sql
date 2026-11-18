@@ -152,3 +152,15 @@ INSERT INTO counters(name, value) VALUES ('order_kode', 0) ON CONFLICT DO NOTHIN
 CREATE TABLE IF NOT EXISTS proses_sekali (
   ref  TEXT PRIMARY KEY
 );
+
+-- keranjang member yang belum di-checkout (untuk analisa "paling diinginkan")
+CREATE TABLE IF NOT EXISTS keranjang (
+  member_id   TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  product_id  INTEGER NOT NULL,
+  satuan      TEXT NOT NULL DEFAULT 'pack',
+  isi         INTEGER NOT NULL DEFAULT 1,
+  harga       INTEGER NOT NULL DEFAULT 0,
+  qty         INTEGER NOT NULL DEFAULT 1,
+  updated_at  TEXT NOT NULL DEFAULT now_iso(),
+  PRIMARY KEY (member_id, product_id, satuan)
+);

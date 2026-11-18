@@ -29,7 +29,7 @@ DECLARE
 BEGIN
   PERFORM setseed(0.4141);
   -- bersihkan data dummy lama (admin & produk tetap)
-  DELETE FROM redemptions; DELETE FROM point_logs; DELETE FROM orders; DELETE FROM proses_sekali;
+  DELETE FROM keranjang; DELETE FROM redemptions; DELETE FROM point_logs; DELETE FROM orders; DELETE FROM proses_sekali;
   DELETE FROM auth_users WHERE id <> admin_id; DELETE FROM rewards;
   UPDATE counters SET value = 0 WHERE name = 'order_kode';
   UPDATE products SET stok = 5000;
@@ -191,3 +191,15 @@ BEGIN
   END LOOP;
   UPDATE counters SET value = seq WHERE name='order_kode';
 END $$;
+
+-- keranjang yang belum di-checkout (90 member, produk favorit lebih sering muncul)
+DELETE FROM keranjang;
+INSERT INTO keranjang (member_id, product_id, satuan, isi, harga, qty, updated_at)
+SELECT m.id, p.id, CASE WHEN r2 < 0.2 THEN 'slof' ELSE 'pack' END, CASE WHEN r2 < 0.2 THEN p.isi_slof ELSE 1 END,
+       CASE WHEN r2 < 0.2 THEN p.harga_slof ELSE p.harga END, 1 + floor(random()*4)::int,
+       to_char((now() - interval '1 hour' * floor(random()*336)) AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
+FROM (SELECT id FROM profiles WHERE role='member' ORDER BY random() LIMIT 90) m
+CROSS JOIN LATERAL (SELECT id, isi_slof, harga_slof, harga, random() r2 FROM products WHERE aktif=1
+  ORDER BY random() * (CASE WHEN id IN (44,45,48,49,64,65,71) THEN 0.35 ELSE 1 END) + (m.id <> '')::int * 0
+  LIMIT (1 + floor(random()*4)::int)) p
+ON CONFLICT DO NOTHING;

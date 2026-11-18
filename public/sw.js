@@ -1,7 +1,7 @@
 /* Service worker E-COMMERS DUMMY — Develop Program By Nurman Catra
    Halaman: network-first (selalu versi terbaru, cadangan cache saat offline).
    Aset statis lokal: stale-while-revalidate. Data API (/api/*, POST): tidak di-cache. Foto/video (/files/*): disimpan di cache. */
-const CACHE = 'ecommers-dummy-v2';
+const CACHE = 'ecommers-dummy-v3';
 const SHELL = ['/', '/index.html', '/d1-client.js', '/manifest.json', '/logo.jpg', '/banner-bg.jpg', '/jnt.png', '/jnt-hitam.png', '/fonts/poppins-bold.woff', '/icons/icon-192.png', '/icons/icon-512.png'];
 
 self.addEventListener('install', e => {
