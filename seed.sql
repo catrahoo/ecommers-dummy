@@ -76,3 +76,6 @@ ON CONFLICT DO NOTHING;
 -- stok produk dibuat besar untuk demo
 UPDATE products SET stok = 5000;
 SELECT setval(pg_get_serial_sequence('products','id'), (SELECT max(id) FROM products));
+
+-- iklan pop up (video ada di public/iklan/)
+INSERT INTO popups (judul, gambar_url, posisi, aktif, urutan) VALUES ('Promo', '/iklan/popup-1.mp4', 'popup', 1, 0);
