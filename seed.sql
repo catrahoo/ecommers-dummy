@@ -79,3 +79,4 @@ SELECT setval(pg_get_serial_sequence('products','id'), (SELECT max(id) FROM prod
 
 -- iklan pop up (video ada di public/iklan/)
 INSERT INTO popups (judul, gambar_url, posisi, aktif, urutan) VALUES ('Promo', '/iklan/popup-1.mp4', 'popup', 1, 0);
+INSERT INTO popups (judul, gambar_url, posisi, aktif, urutan) VALUES ('Iklan 1', '/iklan/baris-1.mp4', 'baris', 1, 1);
