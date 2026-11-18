@@ -1,0 +1,25 @@
+# E-COMMERS DUMMY — Cloudflare Worker + Neon Postgres + KV
+name = "ecommers-dummy"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+compatibility_flags = ["nodejs_compat"]
+
+# file web dilayani dari public/, /api/* dan /files/* diproses Worker
+[assets]
+directory = "./public"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*", "/files/*"]
+
+# penyimpanan foto produk / iklan / logo / QRIS
+[[kv_namespaces]]
+binding = "FILES"
+id = "88ed42e9e6c245fca5aa8458baaac58e"
+
+[observability]
+enabled = true
+
+# Secret (isi lewat dashboard Worker → Settings → Variables and Secrets):
+#   DATABASE_URL    → connection string Neon (wajib)
+#   JWT_SECRET      → teks acak min. 32 karakter (wajib)
+#   RAJAONGKIR_KEY  → opsional, ongkir J&T otomatis
